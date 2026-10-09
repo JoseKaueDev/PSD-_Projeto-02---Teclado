@@ -6,8 +6,6 @@ endpackage
  
 import teclado_pkg::*;
 
-
- 
 module decodificador_de_teclado (
   input  logic        clk,          // 1 kHz
   input  logic        rst,          // assíncrono, ativo em 1
@@ -204,7 +202,4 @@ module decodificador_de_teclado (
                 ESTADO <= LIMPEZA;   
 
 
-
-
-  
 endmodule
