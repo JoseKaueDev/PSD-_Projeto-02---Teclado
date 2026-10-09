@@ -15,22 +15,24 @@ module decodificador_de_teclado (
   output digitosPac_t digitos_value,
   output logic        digitos_valid // pulso de 1 ciclo quandso confirm, especial, timeout após
 ); 
-   
-  logic cont_debounce [31:0]; 
-  logic time_out [31:0]; 
-  logic buffer[1:0]; 
-  logic temp [31:0]; 
-  logic cont_press [31:0]; 
-  logic tem_num [1:0]; 
-  logic A_solto [1:0];
-  logic tempA [31:0];
-  logic cont_debounce_A [31:0]; 
-  logic cont_debounce [31:0]; 
+
+  logic [31:0]cont_debounce; 
+  logic [31:0] time_out; 
+  logic [31:0] tempA ;
+  logic [31:0]cont_debounce_A; 
+  logic [31:0] temp; 
+  logic [31:0] cont_press; 
+
+//são flags, apenas 1 bit
+  logic tem_num; 
+  logic A_solto;
+  logic buffer; 
+  
   
   
      enum logic [4:0] {IDLE, VARREDURA, DEBOUNCE, OPERADOR, FUNCAO_NUM, AGUARDA, PRESSIONANDO, FUNCAO_A,
      VARREDURA_A, DEBOUNCE_A, FUNCAO_A_NUM, AGUARDA_SOLTURA_A_NUM, ENVIA_A_NUM, FUNCAO_SO_A,
-     UNCAO_ESPECIAL, AGUARDA_ESPECIAL, VARREDURA_ESPECIAL, PROCESSO_DE_CONFIRMACAO, LIMPEZA, AGUARDANDO, TIMEOUT, DEFAULT} ESTADO;
+     FUNCAO_ESPECIAL, AGUARDA_ESPECIAL, VARREDURA_ESPECIAL, PROCESSO_DE_CONFIRMACAO, LIMPEZA, AGUARDANDO, TIMEOUT, DEFAULT} ESTADO;
   
   logic [7:0] estado_teclado;
   logic [3:0] tecla_atual;
@@ -62,29 +64,28 @@ module decodificador_de_teclado (
       endcase
   end
     
-
-
     always_ff @ (posedge clk or posedge rst) begin
+
       if(rst) begin
-        
         ESTADO <= IDLE;
         time_out      <= 0;
         cont_debounce <= 0;
         cont_press    <= 0;
-        buffer  <= 0;
-        digitos_value <= '0;
-        
+        buffer        <= 0;
+        digitos_value <= '1;
       end
+
       else begin
         case(ESTADO)
-            IDLE:
+            IDLE: begin
                 temp <= 0;
-                time_out = 0;
-                cont_debounce = 0;
-                ESTADO <= VARREDURA;
+                time_out <= 0;
+                cont_debounce <= 0;
                 cont_debounce_A <= 0;
+                ESTADO <= VARREDURA;
+            end
           
-            VARREDURA:
+            VARREDURA: begin
                 time_out <= time_out +1;
                 if(time_out < 5000 && col_matriz == 4'b1111) 
                     ESTADO <= VARREDURA;
@@ -92,46 +93,51 @@ module decodificador_de_teclado (
                     ESTADO <= DEBOUNCE;
                 else if(time_out >= 5000 && buffer == 0)
                     ESTADO <= TIMEOUT;
-   
-            DEBOUNCE:
+            end
+
+            DEBOUNCE: begin
                 cont_debounce <= cont_debounce + 1;
-          
                 if(cont_debounce < 100)
                     ESTADO <= DEBOUNCE;
                 else if(col_matriz == 4'b1111)
                     ESTADO <= VARREDURA;
-                else: 
+                else 
                     ESTADO <= OPERADOR;
-                    
-            OPERADOR:
-                if (tecla_atual >= 4'h0 && tecla_atual <= 4'09) 
+            end 
+
+            OPERADOR: begin
+                if (tecla_atual >= 4'h0 && tecla_atual <= 4'h9) 
                     ESTADO <= FUNCAO_NUM;
                 else if(tecla_atual == 4'hA)
                     ESTADO <= FUNCAO_A;
                 else if (tecla_atual >= 4'hB && tecla_atual <= 4'hD || tecla_atual == 0'hF)
                     ESTADO <= FUNCAO_ESPECIAL;
-                else: //*
+                else //*
                     ESTADO <= PROCESSO_DE_CONFIRMACAO;
-            
-            FUNCAO_NUM:
+            end
+
+            FUNCAO_NUM: begin
                 ESTADO <= AGUARDA;
                 buffer <= 1;
-            
-            AGUARDA:
-                cont_press <= cont_press + 1;
-                if (col_matriz == !(4'b1111) && cont_press < 2000)
-                    ESTADO <= AGUARDA;
-                else if (col_matriz == !(4'b1111) && cont_press >= 2000)
-                    ESTADO <= PRESSIONANDO;
-                else:
-                    ESTADO <= VARREDURA;
+            end
 
-            FUNCAO_A:
-                tempA = 0;
+            AGUARDA: begin
+                cont_press <= cont_press + 1;
+                if (col_matriz != 4'b1111 && cont_press < 2000)
+                    ESTADO <= AGUARDA;
+                else if (col_matriz != 4'b1111 && cont_press >= 2000)
+                    ESTADO <= PRESSIONANDO;
+                else
+                    ESTADO <= VARREDURA;
+            end
+
+            FUNCAO_A: begin
+                tempA <= 0;
                 //dar um jeito de guardar A, pois Não podemos configulá-lo em alwais ff e comb ao mesmo tempo. podemos criar 
                 ESTADO <= VARREDURA_A;
+            end
 
-            VARREDURA_A:
+            VARREDURA_A: begin
                 tempA <= tempA + 1;
                 if (tecla_atual == 4'hA && col_matriz == 4'b1111)
                     ESTADO <= VARREDURA_A;
@@ -141,20 +147,22 @@ module decodificador_de_teclado (
                     ESTADO <= FUNCAO_SO_A;
                 else if (tecla_atual >= 4'h0 && tecla_atual <= 4'h9 && A_solto == 0)
                     ESTADO <= DEBOUNCE_A;
-                else:
+                else
                     ESTADO <= ENVIA_A_NUM;
-            
-            DEBOUNCE_A:
+            end
+
+            DEBOUNCE_A: begin
                 cont_debounce_A <= cont_debounce_A + 1;
                 if(cont_debounce_A < 100)
                     ESTADO <= DEBOUNCE_A;
-                else:
+                else
                     ESTADO <= FUNCAO_A_NUM;
+            end
 
-            FUNCAO_A_NUM:
+            FUNCAO_A_NUM: 
                 ESTADO <= AGUARDA_SOLTURA_A_NUM;
 
-            AGUARDA_SOLTURA_A_NUM:
+            AGUARDA_SOLTURA_A_NUM: begin
                 count_debounce_A <= count_debounce_A + 1;
                 if(A_solto == 0 && num_solto == 1) 
                     ESTADO <= VARREDURA_A;
@@ -162,6 +170,7 @@ module decodificador_de_teclado (
                     ESTADO <= AGUARDA_SOLTURA_A_NUM;
                 else if(A_solto == 1 && num_solto == 1 && count_debounce_A >= 100)
                     ESTADO <= ENVIA_A_NUM;
+            end
 
             ENVIA_A_NUM:
                 ESTADO <= LIMPEZA;
@@ -172,15 +181,15 @@ module decodificador_de_teclado (
             FUNCAO_ESPECIAL:
                 ESTADO <= AGUARDA_ESPECIAL; 
          
-            AGUARDA_ESPECIAL:
+            AGUARDA_ESPECIAL: begin
                 temp <= temp + 1;
                 if (temp > 100 && temp <= 5000)
                     ESTADO <= AGUARDA_ESPECIAL;
-                
                 else if ((tecla_atual != 4'hB && tecla_atual != 4'hC && tecla_atual != 4'hD && tecla_atual != 4'hF) && temp >= 5000)
                     ESTADO <= VARREDURA_ESPECIAL;
-                else:
+                else
                     ESTADO <= VARREDURA;
+            end
 
             VARREDURA_ESPECIAL:
                 ESTADO <= LIMPEZA;
@@ -192,14 +201,18 @@ module decodificador_de_teclado (
             LIMPEZA:
                 ESTADO <= AGUARDANDO;
 
-            AGUARDANDO:
+            AGUARDANDO: begin
                 if(col_matriz != 4'b1111)
                     ESTADO <= AGUARDANDO;
                 else
                     ESTADO <= VARREDURA;
+            end
 
             TIMEOUT:
                 ESTADO <= LIMPEZA;   
+
+        endcase
+        end
 
 
 endmodule
