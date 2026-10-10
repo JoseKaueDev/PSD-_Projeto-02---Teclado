@@ -32,7 +32,7 @@ module decodificador_de_teclado (
   
      enum logic [4:0] {IDLE, VARREDURA, DEBOUNCE, OPERADOR, FUNCAO_NUM, AGUARDA, PRESSIONANDO, FUNCAO_A,
      VARREDURA_A, DEBOUNCE_A, FUNCAO_A_NUM, AGUARDA_SOLTURA_A_NUM, ENVIA_A_NUM, FUNCAO_SO_A,
-     FUNCAO_ESPECIAL, AGUARDA_ESPECIAL, VARREDURA_ESPECIAL, PROCESSO_DE_CONFIRMACAO, LIMPEZA, AGUARDANDO, TIMEOUT, DEFAULT} ESTADO;
+     FUNCAO_ESPECIAL, AGUARDA_ESPECIAL, VARREDURA_ESPECIAL, PROCESSO_DE_CONFIRMACAO, LIMPEZA, AGUARDANDO, TIMEOUT, DEFAULT} ESTADO, PROX_ESTADO;
   
   logic [7:0] estado_teclado;
   logic [3:0] tecla_atual;
@@ -63,6 +63,8 @@ module decodificador_de_teclado (
           end
       endcase
   end
+
+  
     
     always_ff @ (posedge clk or posedge rst) begin
 
@@ -132,13 +134,13 @@ module decodificador_de_teclado (
             end
 
             FUNCAO_A: begin
-                tempA <= 0;
+                temp_A <= 0;
                 //dar um jeito de guardar A, pois Não podemos configulá-lo em alwais ff e comb ao mesmo tempo. podemos criar 
                 ESTADO <= VARREDURA_A;
             end
 
             VARREDURA_A: begin
-                tempA <= tempA + 1;
+                temp_A <= temp_A + 1;
                 if (tecla_atual == 4'hA && col_matriz == 4'b1111)
                     ESTADO <= VARREDURA_A;
                 else if (A_solto == 1 && temp_A < 5000 && tem_num == 0)
@@ -210,8 +212,9 @@ module decodificador_de_teclado (
 
             TIMEOUT:
                 ESTADO <= LIMPEZA;   
-
+    
         endcase
+      end
         end
 
 
