@@ -16,12 +16,12 @@ module decodificador_de_teclado (
   output logic        digitos_valid // pulso de 1 ciclo quandso confirm, especial, timeout após
 ); 
 
-  logic [31:0]cont_debounce; 
+  logic [31:0] cont_debounce; 
   logic [31:0] time_out; 
   logic [31:0] temp_A ;
-  logic [31:0]count_debounce_A; 
+  logic [31:0] cont_debounce_A; 
   logic [31:0] temp; 
-  logic [31:0] count_press; 
+  logic [31:0] cont_press; 
 
 //são flags, apenas 1 bit
   logic tem_num; 
@@ -69,8 +69,8 @@ module decodificador_de_teclado (
       if(rst) begin
         ESTADO <= IDLE;
         time_out      <= 0;
-        count_debounce <= 0;
-        count_press    <= 0;
+        cont_debounce <= 0;
+        cont_press    <= 0;
         buffer        <= 0;
         digitos_value <= '1;
       end
@@ -80,8 +80,8 @@ module decodificador_de_teclado (
             IDLE: begin
                 temp <= 0;
                 time_out <= 0;
-                count_debounce <= 0;
-                count_debounce_A <= 0;
+                cont_debounce <= 0;
+                cont_debounce_A <= 0;
                 ESTADO <= VARREDURA;
             end
           
@@ -163,12 +163,12 @@ module decodificador_de_teclado (
                 ESTADO <= AGUARDA_SOLTURA_A_NUM;
 
             AGUARDA_SOLTURA_A_NUM: begin
-                count_debounce_A <= count_debounce_A + 1;
+                cont_debounce_A <= cont_debounce_A + 1;
                 if(A_solto == 0 && num_solto == 1) 
                     ESTADO <= VARREDURA_A;
-                else if(num_solto == 0 || (A_solto == 1 && num_solto == 1 && count_debounce_A < 100))
+                else if(num_solto == 0 || (A_solto == 1 && num_solto == 1 && cont_debounce_A < 100))
                     ESTADO <= AGUARDA_SOLTURA_A_NUM;
-                else if(A_solto == 1 && num_solto == 1 && count_debounce_A >= 100)
+                else if(A_solto == 1 && num_solto == 1 && cont_debounce_A >= 100)
                     ESTADO <= ENVIA_A_NUM;
             end
 
