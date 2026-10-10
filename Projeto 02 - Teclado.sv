@@ -37,7 +37,27 @@ module decodificador_de_teclado (
   logic [7:0] estado_teclado;
   logic [3:0] tecla_atual;
 
+  logic [3:0] prox_lin; //para varredura do lin_matriz
+
   assign estado_teclado = {lin_matriz, col_matriz};
+
+
+    //varredura
+    always_comb begin
+        case(lin_matriz)
+            4'b0111: prox_lin = 4'b1011;
+            4'b1011: prox_lin = 4'b1101;
+            4'b1101: prox_lin = 4'b1110;
+            default: prox_lin = 4'b0111;
+        endcase
+    end
+
+    always_ff @(posedge clk or posedge rst) begin
+        if(rst) lin_matriz <= 4'b1111;
+        else    lin_matriz <= prox_lin;
+    end
+
+
 
   always_comb begin
       
