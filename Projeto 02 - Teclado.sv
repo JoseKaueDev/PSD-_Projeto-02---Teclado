@@ -18,10 +18,10 @@ module decodificador_de_teclado (
 
   logic [31:0]cont_debounce; 
   logic [31:0] time_out; 
-  logic [31:0] tempA ;
-  logic [31:0]cont_debounce_A; 
+  logic [31:0] temp_A ;
+  logic [31:0]count_debounce_A; 
   logic [31:0] temp; 
-  logic [31:0] cont_press; 
+  logic [31:0] count_press; 
 
 //são flags, apenas 1 bit
   logic tem_num; 
@@ -69,8 +69,8 @@ module decodificador_de_teclado (
       if(rst) begin
         ESTADO <= IDLE;
         time_out      <= 0;
-        cont_debounce <= 0;
-        cont_press    <= 0;
+        count_debounce <= 0;
+        count_press    <= 0;
         buffer        <= 0;
         digitos_value <= '1;
       end
@@ -80,8 +80,8 @@ module decodificador_de_teclado (
             IDLE: begin
                 temp <= 0;
                 time_out <= 0;
-                cont_debounce <= 0;
-                cont_debounce_A <= 0;
+                count_debounce <= 0;
+                count_debounce_A <= 0;
                 ESTADO <= VARREDURA;
             end
           
@@ -110,7 +110,7 @@ module decodificador_de_teclado (
                     ESTADO <= FUNCAO_NUM;
                 else if(tecla_atual == 4'hA)
                     ESTADO <= FUNCAO_A;
-                else if (tecla_atual >= 4'hB && tecla_atual <= 4'hD || tecla_atual == 0'hF)
+                else if (tecla_atual >= 4'hB && tecla_atual <= 4'hD || tecla_atual == 4'hF)
                     ESTADO <= FUNCAO_ESPECIAL;
                 else //*
                     ESTADO <= PROCESSO_DE_CONFIRMACAO;
