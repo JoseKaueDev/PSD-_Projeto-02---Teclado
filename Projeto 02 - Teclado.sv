@@ -39,7 +39,7 @@ module decodificador_de_teclado (
 
   logic [3:0] prox_lin; //para varredura do lin_matriz
 
-  assign estado_teclado = {lin_matriz, col_matriz};
+  assign estado_teclado = {lin_d2, col_sync};
 
 
     //varredura
