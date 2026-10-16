@@ -162,33 +162,6 @@ always_comb begin
 end
 
 
-  logic recem_resetado;
-  logic enable_ant;
-  logic habilitado_reg;
-  logic mod_ativo;
-  logic pulso_pendente; // Guarda o pulso se o módulo congelar exatamente no ciclo do pulso
-
-  // Após o reset assume o nível atual de enable; depois, segue o registo atualizado pelas bordas
-  assign mod_ativo = recem_resetado ? enable : habilitado_reg;
-
-always_ff @(posedge clk or posedge rst) begin
-    if (rst) begin
-        recem_resetado <= 1'b1;
-        enable_ant     <= 1'b0;
-        habilitado_reg <= 1'b0;
-    end 
-    else begin
-        recem_resetado <= 1'b0;
-        enable_ant     <= enable;
-        if (recem_resetado)
-            habilitado_reg <= enable;
-        else if (enable && !enable_ant)  // Borda de subida: habilita no ciclo seguinte
-            habilitado_reg <= 1'b1;
-        else if (!enable && enable_ant)  // Borda de descida: desabilita no ciclo seguinte
-            habilitado_reg <= 1'b0;
-    end
-end
-
 
   
     
@@ -349,7 +322,7 @@ end
 
             //modificacao do funcao A
             FUNCAO_A: begin
-                temp_A <= 100;
+                temp_A <= 101;
                 tem_num <= 1'b0;
                 A_solto <= 1'b0;
                 num_solto <= 1'b1;
@@ -390,7 +363,7 @@ end
                     end
                 end else if (tecla_valida && tecla_atual <= 4'h9 && cont_soltura_A == 0) begin
                     // Detectou um numero (0 a 9) enquanto A esta pressionado
-                    tecla_atual <= num_salvo; // Usa provisoriamente ou salva alvo do debounce
+                    tecla_salva <= tecla_atual; // Usa provisoriamente ou salva alvo do debounce
                     linha_num_A     <= lin_d2;
                     // Cria mascara apenas para o bit da coluna desse número:
                     col_num_A <= (tecla_atual == 4'h1 || tecla_atual == 4'h4 || tecla_atual == 4'h7) ? 4'b1000 :
@@ -501,7 +474,7 @@ end
                     ESTADO <= LIMPEZA;
                 end else begin
                     // Teclas B, C e D: precisam de 5000 ciclos e soltura
-                    temp                 <= 100; // 100 ciclos já contados no DEBOUNCE
+                    temp                 <= 101; // 100 ciclos já contados no DEBOUNCE
                     cont_soltura         <= 0;
                     num_invalido_esp     <= 1'b0;
                     ESTADO               <= AGUARDA_ESPECIAL;
