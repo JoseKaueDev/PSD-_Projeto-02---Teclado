@@ -8,10 +8,10 @@ endpackage
 import teclado_pkg::*;
 
 module decodificador_de_teclado (
-    input  logic   clk,          // 1 kHz
-    input  logic   enable,       // subida habilita, descida desabilita
-    input  logic   rst,          // assíncrono, ativo em 1
-    input  logic [3:0]  col_matriz,   // 0 = tecla pressionada
+    input  logic        clk,          // 1 kHz
+    input  logic        enable,       // subida habilita, descida desabilita
+    input  logic        rst,          // assíncrono, ativo em 1
+    input  logic [3:0]  col_matriz,   //  0 = tecla pressionada
     output logic [3:0]  lin_matriz,   // ativa em 0, uma linha por ciclo
     output digitosPac_t digitos_value,
     output logic        digitos_valid // pulso de 1 ciclo quandso confirm, especial, timeout após
@@ -32,7 +32,6 @@ module decodificador_de_teclado (
     logic num_solto;
 
     logic tecla_valida;   // 1 = existe tecla apertada, 0 = nenhuma tecla
-  
   
     enum logic [4:0] {IDLE, VARREDURA, DEBOUNCE, OPERADOR, FUNCAO_NUM, AGUARDA, PRESSIONANDO, FUNCAO_A,
     VARREDURA_A, DEBOUNCE_A, FUNCAO_A_NUM, AGUARDA_SOLTURA_A_NUM, ENVIA_A_NUM, FUNCAO_SO_A,
@@ -90,15 +89,12 @@ always_ff @(posedge clk or posedge rst) begin
         enable_ant     <= enable;
         if (recem_resetado)
             habilitado_reg <= enable;
-        else if (enable && !enable_ant)  // Borda de subida: habilita no ciclo seguinte
+        else if (enable && !enable_ant)  // Borda de subida habilita no ciclo seguinte
             habilitado_reg <= 1'b1;
-        else if (!enable && enable_ant)  // Borda de descida: desabilita no ciclo seguinte
+        else if (!enable && enable_ant)  // Borda de descida desabilita no ciclo seguinte
             habilitado_reg <= 1'b0;
     end
 end
-
-
-
 
 //varredura linha
 always_comb begin
@@ -208,7 +204,9 @@ end
             end
           
             VARREDURA: begin
-                if (tecla_valida) begin
+                // Exigimos que cont_soltura seja >= 4 indicando que a varredura deu uma volta completa
+                // nas 4 linhas e confirmou que todas as teclas estão soltas) antes de aceitar tecla nova.
+                if (tecla_valida && cont_soltura >= 4) begin
                     tecla_salva   <= tecla_atual; // Memoriza qual tecla foi apertada
                     linha_salva   <= lin_d2;      // Memoriza a linha da tecla
                     col_salva     <= col_sync;    // Memoriza a coluna da tecla
@@ -216,17 +214,29 @@ end
                     cont_debounce <= 1;           // Inicia a contagem de 100 ciclos (T0i)
                     ESTADO        <= DEBOUNCE;
                 end 
-                else if (buffer == 1'b1) begin
-                    if (time_out >= 4999) begin
-                        ESTADO   <= TIMEOUT;
-                    end else begin
-                        time_out <= time_out + 1;
+                else begin
+                    // Contagem do Timeout do Buffer (T9): só conta se houver número no buffer
+                    if (buffer == 1'b1) begin
+                        if (time_out >= 4999) begin
+                            ESTADO   <= TIMEOUT;
+                        end else begin
+                            time_out <= time_out + 1;
+                            ESTADO   <= VARREDURA;
+                        end
+                    end 
+                    else begin
+                        time_out <= 0;
                         ESTADO   <= VARREDURA;
                     end
-                end 
-                else begin
-                    time_out <= 0;
-                    ESTADO   <= VARREDURA;
+
+                    // Lógica para ignorar teclas sobrepostas (T8):
+                    // Se há alguma tecla pressionada inválida (de antes), zera o contador de "teclado livre".
+                    // Se não há teclas, conta até 4.
+                    if (tecla_valida) begin
+                        cont_soltura <= 0;
+                    end else if (cont_soltura < 4) begin
+                        cont_soltura <= cont_soltura + 1;
+                    end
                 end
             end
 
@@ -277,9 +287,9 @@ end
                 // --- Transições e Auto-repetição (2000 ciclos) ---
                 if (cont_soltura >= 99) begin
                     // Soltura confirmada (T0f + 100): volta para varredura e inicia timeout
-                    cont_soltura <= 0;
+                    cont_soltura <= 0; // Zera para obrigar os 4 ciclos sem toque na VARREDURA
                     cont_press   <= 0;
-                    time_out     <= 0;
+                    time_out     <= 100; // Compensamos os 100 ciclos que passamos no AGUARDA (Sincroniza o T9)
                     ESTADO       <= VARREDURA;
                 end else if (cont_press >= 1999) begin
                     // 2000 ciclos pressionada: 1ª auto-repetição!
@@ -307,7 +317,7 @@ end
                 if (cont_soltura >= 99) begin
                     cont_soltura <= 0;
                     cont_press   <= 0;
-                    time_out     <= 0;
+                    time_out     <= 100; // Compensamos os 100 ciclos que passamos no PRESSIONANDO
                     ESTADO       <= VARREDURA;
                 end else if (cont_press >= 999) begin
                     // +1000 ciclos pressionada: repete o dígito!
@@ -359,8 +369,9 @@ end
                     end else if (temp_A >= 5000) begin
                         ESTADO <= FUNCAO_SO_A; // Sa A por >= 5000 ciclos
                     end else begin
-                        time_out <= 0;         // So A por < 5000 ciclos: ignorada, volta à varredura
-                        ESTADO   <= VARREDURA;
+                        time_out     <= 0;       // So A por < 5000 ciclos: ignorada, volta à varredura
+                        cont_soltura <= 0;
+                        ESTADO       <= VARREDURA;
                     end
                 end else if (tecla_valida && tecla_atual <= 4'h9 && cont_soltura_A == 0) begin
                     // Detectou um numero (0 a 9) enquanto A esta pressionado
@@ -540,10 +551,12 @@ end
                 buffer        <= 1'b0; // Marca buffer como vazio
                 time_out      <= 0;
                 // Se a tecla já foi solta antes do pulso (A, A+n, B-D, TIMEOUT), volta direto para VARREDURA
-                if (cont_soltura >= 100)
-                    ESTADO <= VARREDURA;
-                else
-                    ESTADO <= AGUARDANDO; // Se veio de * ou #, espera o utilizador tirar o dedo da tecla
+                if (cont_soltura >= 100) begin
+                    cont_soltura <= 0;
+                    ESTADO       <= VARREDURA; 
+                end else begin
+                    ESTADO       <= AGUARDANDO; // Se veio de * ou #, espera o utilizador tirar o dedo da tecla
+                end
             end
 
             AGUARDANDO: begin
@@ -561,7 +574,7 @@ end
                 if (cont_soltura >= 99) begin
                     cont_soltura <= 0;
                     time_out     <= 0;
-                    ESTADO       <= VARREDURA;
+                    ESTADO       <= VARREDURA; 
                 end else begin
                     ESTADO       <= AGUARDANDO;
                 end
