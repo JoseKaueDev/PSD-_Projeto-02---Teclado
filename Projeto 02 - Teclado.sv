@@ -8,10 +8,10 @@ endpackage
 import teclado_pkg::*;
 
 module decodificador_de_teclado (
-    input  logic        clk,          // 1 kHz
-    input  logic         enable,       // subida habilita, descida desabilita
-    input  log       rst,          // assíncrono, ativo em 1
-    input  logicic [3:0]  col_matriz,   // 0 = tecla pressionada
+    input  logic   clk,          // 1 kHz
+    input  logic   enable,       // subida habilita, descida desabilita
+    input  logic   rst,          // assíncrono, ativo em 1
+    input  logic [3:0]  col_matriz,   // 0 = tecla pressionada
     output logic [3:0]  lin_matriz,   // ativa em 0, uma linha por ciclo
     output digitosPac_t digitos_value,
     output logic        digitos_valid // pulso de 1 ciclo quandso confirm, especial, timeout após
