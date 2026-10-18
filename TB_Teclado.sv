@@ -1,68 +1,61 @@
 // =============================================================================
-// README - TESTBENCH DO decodificador_de_teclado
+// README - TESTBENCH SEQUENCIAL DO decodificador_de_teclado
 // =============================================================================
 //
 // O QUE ESTE TESTBENCH FAZ
-//   Simula um teclado 4x4 ligado ao módulo, aperta e solta teclas e confere se a
-//   saída do módulo está certa e no tempo certo (entre R e R+20 ciclos).
+//   Simula fisicamente um teclado 4x4 ligado ao módulo, aciona as teclas passo
+//   a passo de forma sequencial e confere imediatamente
+//   se a saída está correta no ciclo esperado.
 //
 // ENTRADAS DO MÓDULO (o testbench GERA)
 //   clk         clock. O módulo só conta ciclos: 1 ciclo = 1 período do clock.
-//   rst         reset assíncrono (1 = reset). Usado nos testes T1, T10 e T11.
-//   enable      habilita/desabilita o módulo. Usado no teste T11.
-//   col_matriz  colunas do teclado, geradas pelo modelo do teclado:
+//   rst         reset assíncrono (1 = reset).
+//   enable      habilita/desabilita o módulo. Usado no teste de congelamento.
+//   col_matriz  colunas do teclado, geradas pelo emulador do teclado:
 //               0 = tecla apertada na linha que está ativa; 1111 = nenhuma tecla.
 //
 // SAÍDAS DO MÓDULO (o testbench OBSERVA)
-//   lin_matriz     linha ativa (0111 -> 1011 -> 1101 -> 1110 -> 0111...).
-//                  A sequência é conferida o tempo tod0.
-//   digitos_value  buffer de 20 dígitos hexa (80 bits), ligado ao vetor "dv".
-//   digitos_valid  pulso de 1 ciclo quando acontece um evento (*, #, A-D, A+n, timeout).
+//   lin_matriz    linha ativa da varredura (0111 -> 1011 -> 1101 -> 1110 -> 0111...).
+//   digitos_value buffer de 20 dígitos hexa (80 bits).
+//   digitos_valid pulso de 1 ciclo quando acontece um evento de confirmação ou erro.
 //
 // SINAIS CRIADOS PELO TESTBENCH
-//   tecla_fisica   1 bit por tecla (1 = dedo na tecla).
-//                  Bits 0 a 9 = dígitos | 10=A  11=B  12=C  13=D  14=*  15=#
-//   cyc            número do ciclo atual (usado para calcular T0i, T0f e R).
-//   bufm           buffer ESPERADO: o que digitos_value deve mostrar.
-//   exp_R/W/V/P/N  fila de eventos esperados: instante R, janela, valor,
-//                  se valid deve ser 1 e o nome do evento.
-//   erros          quantidade de erros encontrados.
-//   checks_ok      quantidade de verificações que passaram.
+//   tecla_fisica  1 bit por tecla (1 = dedo na tecla). 
+//                 Bits 0 a 9 = dígitos | 10=A  11=B  12=C  13=D  14=*  15=#
+//   erros         quantidade total de falhas na simulação.
+//   testes_ok     quantidade de verificações que passaram com sucesso.
 //
 // BLOCOS DO TESTBENCH
-//   1. Modelo do teclado: transforma tecla_fisica + lin_matriz em col_matriz.
-//   2. Tarefas de estímulo: aperta/solta uma tecla e devolvem T0i/T0f;
-//      digito, evento_imediato (* e #), letra_simples (A-D) e a_mais_n (A + número).
-//   3. Scoreboard: cada tarefa avisa o que deve acontecer (push_exp) e quando (R).
-//   4. Monitor: a cada ciclo olha digitos_value e digitos_valid e compara com o
-//      que o scoreboard esperava.
-//   5. Testes (T1 a T11): sequência principal no bloco "initial".
+//   1. Emulador Físico: transforma o estado "tecla_fisica" em sinais "col_matriz".
+//   2. Tasks de Estímulo: aplicam ações no tempo (esperar_ciclos, clicar_tecla).
+//   3. Tasks de Conferência: "verificar" (checa valores silenciosos no buffer) e 
+//      "aguardar_pulso_e_limpeza" (espera o pulso de valid e checa o valor exato).
+//   4. Sequência Principal: O bloco "initial" contendo cronologicamente os Testes.
 //
 // COMO A CONFERÊNCIA FUNCIONA
-//   - T0i/T0f: primeiro ciclo em que a linha da tecla está ativa (calculado pelo testbench).
-//   - R: instante de referência de cada evento (ex.: dígito = T0i+100; letra = T0f+100).
-//   - Toda mudança na saída deve cair entre R e R+20 e ter o valor esperado.
-//   - Depois de um pulso, no ciclo seguinte valid=0 e digitos_value volta a 20xF.
-//   - O estímulo muda no negedge do clock e o módulo lê no posedge (sem corrida).
-//   - Tp das letras é sempre múltiplo de 4; por isso os limites testados são
-//     4996 (ignorada) e 5000 (válida).
+//   O testbench avança no tempo e analisa a saída instantaneamente. 
+//   - Para transições de buffer (entradas numéricas normais), usa-se a task "verificar".
+//   - Para eventos como '*', '#', letras e Timeout, usa-se a task "aguardar_pulso_e_limpeza". 
+//     Ela escuta o barramento até "digitos_valid" subir para 1, checa o valor 
+//     de "digitos_value" e garante que no ciclo imediatamente seguinte o valor
+//     retorna para 20 x F e o pulso cai para 0.
 //
 // O QUE É APONTADO COMO ERRO
-//   ação antes de R | ação depois de R+20 | valor errado | mudança inesperada na saída
-//   evento que não ocorreu | pulso com mais de 1 ciclo | saída com X ou Z |
-//   varredura de lin_matriz fora de ordem
+//   - Valor errado no buffer silencioso ou durante um pulso.
+//   - Pulso (valid=1) que não acontece dentro do tempo máximo estipulado.
+//   - Falha de limpeza (o módulo esquecer de derrubar valid para 0 e limpar para 20xF).
 //
 // TESTES
-//   T1   reset e varredura         T7   tecla A e A + número
-//   T2   ruído ao apertar          T8   mais de uma tecla
-//   T3   dígitos, *, # e "1 1"     T9   timeout
-//   T4   auto-repetição            T10  reset (com tecla apertada e no pulso)
-//   T5   mais de 20 dígitos        T11  enable (congela, retoma, perto do pulso)
-//   T6   teclas B, C e D
+//   T1  Reset e estado inicial             T7  Letra B anulada por intrometido
+//   T2  Rejeição de ruído (quique)         T8  Combinação A + número
+//   T3  Dígitos 1, 2, 3 e conf. com *      T9  Bloqueio de teclas sobrepostas
+//   T4  Auto-repetição (Tp > 2000)         T10 Prioridade na mesma linha
+//   T5  Tecla '#' e cancelamento de buf.   T11 Estouro e deslocamento de 21 díg.
+//   T6  Letras C e A por >= 5000 ciclos    T12 Congelamento por enable e Timeout
 //
 // RESULTADO
-//   Cada verificação imprime [OK] ou [ERRO]. No fim aparece o total de acertos e
-//   erros e a linha "RESULTADO: TOD0S OS TESTES PASSARAM" (ou "HA ERROS").
+//   Cada checagem imprime [OK] ou [ERRO]. O resumo final contabiliza as falhas 
+//   e exibe "RESULTADO: CIRCUITO 100% APROVADO!" se estiver perfeitamente liso.
 //
 // =============================================================================
 
@@ -272,7 +265,7 @@ module tb_decodificador_de_teclado;
         tecla_fisica[4'hB] = 1'b1;
         esperar_ciclos(500);
         clicar_tecla(4'h4, 150, 150); // Aperta e solta o intruso rapidamente
-        esperar_ciclos(4500);         // NOVO: Garante que B fique >= 5000 ciclos pressionada no total!
+        esperar_ciclos(4500);         // Garante que B fique >= 5000 ciclos pressionada no total!
         tecla_fisica[4'hB] = 1'b0;
         esperar_ciclos(150); #1;
         verificar("T7 - Tecla B (>= 5000 ciclos) com numero intrometido anula a letra B perfeitamente", 
